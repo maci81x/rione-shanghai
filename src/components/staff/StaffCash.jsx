@@ -76,11 +76,12 @@ export default function StaffCash() {
 
   const handleQRScan = (code) => {
     setShowScanner(false)
-    const user = users.find(u => u.id.toUpperCase() === code.toUpperCase())
+    const normalized = code.trim().toUpperCase()
+    const user = users.find(u => u.id.toUpperCase() === normalized)
     if (user) {
       handleSelect(user)
     } else {
-      setQuery(code)
+      setQuery(normalized)
       setTimeout(() => searchRef.current?.focus(), 50)
     }
   }

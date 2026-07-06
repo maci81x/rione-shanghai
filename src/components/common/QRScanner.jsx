@@ -1,97 +1,61 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Camera, CameraOff } from 'lucide-react'
-import jsQR from 'jsqr'
+import { Html5Qrcode } from 'html5-qrcode'
+import { X, CameraOff } from 'lucide-react'
+
+const VIEWPORT_ID = 'qr-scan-viewport'
 
 export default function QRScanner({ onScan, onClose }) {
-  const videoRef = useRef(null)
-  const canvasRef = useRef(null)
-  const animRef = useRef(null)
-  const streamRef = useRef(null)
   const [error, setError] = useState(null)
-  const [ready, setReady] = useState(false)
+  const scannerRef = useRef(null)
+  const firedRef = useRef(false)
 
   useEffect(() => {
-    let cancelled = false
+    const scanner = new Html5Qrcode(VIEWPORT_ID)
+    scannerRef.current = scanner
 
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        })
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
-        streamRef.current = stream
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-        setReady(true)
-        animRef.current = requestAnimationFrame(tick)
-      } catch (e) {
-        if (cancelled) return
-        setError(
-          e.name === 'NotAllowedError'
-            ? 'Permesso fotocamera negato. Usa la ricerca manuale.'
-            : 'Fotocamera non disponibile. Assicurati che il sito sia aperto in HTTPS.'
-        )
+    scanner
+      .start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          if (firedRef.current) return
+          firedRef.current = true
+          // Stop camera then fire callback
+          scanner.stop().catch(() => {}).finally(() => onScan(decodedText))
+        },
+        () => {} // per-frame decode errors: normale, ignora
+      )
+      .catch((err) => {
+        const msg = String(err).toLowerCase()
+        if (msg.includes('permission') || msg.includes('notallowed') || msg.includes('denied')) {
+          setError('Permesso fotocamera negato. Usa la ricerca manuale per nome o codice tessera.')
+        } else {
+          setError('Fotocamera non disponibile. Verifica che il sito sia aperto in HTTPS e che nessuna altra app stia usando la camera.')
+        }
+      })
+
+    return () => {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => {})
       }
     }
-
-    startCamera()
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(animRef.current)
-      streamRef.current?.getTracks().forEach(t => t.stop())
-    }
-  }, [])
-
-  const tick = () => {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) {
-      animRef.current = requestAnimationFrame(tick)
-      return
-    }
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    ctx.drawImage(video, 0, 0)
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'dontInvert',
-    })
-    if (code?.data) {
-      cancelAnimationFrame(animRef.current)
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      onScan(code.data)
-      return
-    }
-    animRef.current = requestAnimationFrame(tick)
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
-            <Camera size={18} /> Scansiona QR tessera
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1">
+          <h2 className="font-bold text-gray-900">Scansiona tessera QR</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 p-1 min-h-[44px] flex items-center"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <div className="relative bg-black" style={{ aspectRatio: '1 / 1' }}>
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-          />
-          <canvas ref={canvasRef} className="hidden" />
-          {ready && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-52 h-52 border-2 border-[#FFED00] rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
-            </div>
-          )}
-        </div>
+        {/* html5-qrcode inietta il video qui — tenuto sempre nel DOM */}
+        <div id={VIEWPORT_ID} className={`w-full ${error ? 'hidden' : ''}`} />
 
         {error ? (
           <div className="p-4 space-y-3">
@@ -100,11 +64,11 @@ export default function QRScanner({ onScan, onClose }) {
               <p className="text-red-700 text-sm">{error}</p>
             </div>
             <button onClick={onClose} className="btn-secondary w-full text-sm">
-              Chiudi e usa ricerca manuale
+              Chiudi — usa ricerca manuale
             </button>
           </div>
         ) : (
-          <p className="text-center text-gray-400 text-xs py-3">
+          <p className="text-center text-gray-400 text-xs py-3 px-4">
             Inquadra il QR code della tessera
           </p>
         )}

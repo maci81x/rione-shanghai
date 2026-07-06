@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '../../store/useAuth'
 import { useStore } from '../../store/useStore'
 import { formatDate, formatEur } from '../../utils/format'
-import { LogOut, QrCode, Shield, ChevronDown, ChevronUp } from 'lucide-react'
+import { LogOut, Shield, ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function UserProfile() {
   const { session, logout } = useAuth()
@@ -11,7 +11,6 @@ export default function UserProfile() {
   const user = users.find(u => u.id === session.id)
   const recharges = transactions.filter(t => t.user_id === session.id && t.type === 'ricarica' && !t.voided)
   const [showPrivacy, setShowPrivacy] = useState(false)
-  const [showQR, setShowQR] = useState(false)
 
   const togglePrivacy = (key) => updateUser(user.id, { [key]: !user[key] })
 
@@ -35,17 +34,16 @@ export default function UserProfile() {
             <p className="text-gray-500 text-sm">{user?.id}</p>
             {user?.email && <p className="text-gray-400 text-xs">{user?.email}</p>}
           </div>
-          <button onClick={() => setShowQR(!showQR)} className="bg-gray-100 p-2.5 rounded-xl text-gray-600 hover:bg-black hover:text-[#FFED00] transition-colors">
-            <QrCode size={20} />
-          </button>
         </div>
-        {showQR && (
-          <div className="mt-4 flex justify-center">
-            <div className="bg-white border border-gray-200 p-3 rounded-xl shadow-sm">
-              <QRCodeSVG value={user?.id ?? ''} size={160} level="H" />
-            </div>
-          </div>
-        )}
+      </div>
+
+      {/* QR tessera — sempre visibile, grande */}
+      <div className="card flex flex-col items-center py-5 gap-3">
+        <div className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
+          <QRCodeSVG value={user?.id ?? ''} size={160} level="H" />
+        </div>
+        <p className="font-mono font-black text-gray-900 text-2xl tracking-widest">{user?.id}</p>
+        <p className="text-gray-400 text-sm font-medium">Mostra alla cassa</p>
       </div>
 
       {/* Dati anagrafici */}

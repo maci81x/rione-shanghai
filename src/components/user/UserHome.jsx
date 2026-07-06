@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useStore } from '../../store/useStore'
 import { useAuth } from '../../store/useAuth'
 import { formatEur, formatDateTime, categoryEmoji, typeColor } from '../../utils/format'
-import { Wallet, RefreshCw, QrCode, CalendarDays, X } from 'lucide-react'
+import { Wallet, RefreshCw, CalendarDays } from 'lucide-react'
 
 export default function UserHome({ onNav }) {
   const { session } = useAuth()
@@ -14,7 +13,6 @@ export default function UserHome({ onNav }) {
     .filter(e => new Date(e.event_date) > new Date() && !e.sold_out)
     .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0]
   const activePromo = promotions.find(p => p.active)
-  const [showQR, setShowQR] = useState(false)
 
   return (
     <div className="pb-nav">
@@ -27,20 +25,13 @@ export default function UserHome({ onNav }) {
         </div>
       )}
 
-      {/* Balance card — nero con accento giallo */}
+      {/* Balance card */}
       <div className="bg-gradient-to-br from-black to-gray-800 mx-4 mt-4 rounded-2xl p-5 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-gray-300 text-sm">Benvenuto, <span className="font-semibold text-white">{user?.name}</span></p>
-            <p className="text-gray-500 text-xs mt-0.5">{user?.id}</p>
-            <div className="mt-3">
-              <p className="text-gray-400 text-xs uppercase tracking-wide">Saldo disponibile</p>
-              <p className="text-4xl font-black text-[#FFED00] mt-1">{formatEur(user?.balance ?? 0)}</p>
-            </div>
-          </div>
-          <button onClick={() => setShowQR(true)} className="bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-colors">
-            <QrCode size={24} className="text-white" />
-          </button>
+        <p className="text-gray-300 text-sm">Benvenuto, <span className="font-semibold text-white">{user?.name}</span></p>
+        <p className="text-gray-500 text-xs mt-0.5">{user?.id}</p>
+        <div className="mt-3">
+          <p className="text-gray-400 text-xs uppercase tracking-wide">Saldo disponibile</p>
+          <p className="text-4xl font-black text-[#FFED00] mt-1">{formatEur(user?.balance ?? 0)}</p>
         </div>
         <div className="flex gap-2 mt-4">
           <button
@@ -58,9 +49,23 @@ export default function UserHome({ onNav }) {
         </div>
       </div>
 
+      {/* QR tessera — sempre visibile */}
+      <div className="mx-4 mt-3">
+        <div className="card flex items-center gap-4">
+          <div className="bg-white p-1.5 rounded-xl border border-gray-100 flex-shrink-0">
+            <QRCodeSVG value={user?.id ?? ''} size={90} level="H" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Il tuo codice per lo staff</p>
+            <p className="font-mono font-black text-gray-900 text-xl tracking-wider mt-0.5">{user?.id}</p>
+            <p className="text-gray-400 text-xs mt-1">Mostra allo staff per pagare</p>
+          </div>
+        </div>
+      </div>
+
       {/* Next event */}
       {nextEvent && (
-        <div className="mx-4 mt-4">
+        <div className="mx-4 mt-3">
           <div
             className="card border border-[#eeeeee] cursor-pointer hover:border-black/20 transition-colors"
             onClick={() => onNav('eventi')}
@@ -109,21 +114,6 @@ export default function UserHome({ onNav }) {
           </div>
         )}
       </div>
-
-      {/* QR Modal */}
-      {showQR && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowQR(false)}>
-          <div className="bg-white rounded-2xl p-6 text-center shadow-2xl border border-[#eeeeee]" onClick={e => e.stopPropagation()}>
-            <p className="text-gray-900 font-bold text-lg mb-1">{user?.name} {user?.surname}</p>
-            <p className="text-gray-500 text-sm mb-4">{user?.id}</p>
-            <QRCodeSVG value={user?.id ?? ''} size={200} level="H" />
-            <p className="text-gray-400 text-xs mt-4">Mostra allo staff per pagare</p>
-            <button onClick={() => setShowQR(false)} className="mt-3 text-gray-400 hover:text-gray-700">
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

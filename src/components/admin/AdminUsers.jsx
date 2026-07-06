@@ -92,14 +92,15 @@ export default function AdminUsers() {
 
   const handleQRScan = (code) => {
     setShowScanner(false)
-    const user = users.find(u => u.id.toUpperCase() === code.toUpperCase())
+    const normalized = code.trim().toUpperCase()
+    const user = users.find(u => u.id.toUpperCase() === normalized)
     if (user) {
       setQuery('')
       setSelected(user)
       setFeedback(null)
       setShowTxs(false)
     } else {
-      setQuery(code)
+      setQuery(normalized)
     }
   }
 
