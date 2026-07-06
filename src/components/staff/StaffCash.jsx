@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useStore } from '../../store/useStore'
 import { useAuth } from '../../store/useAuth'
 import { formatEur, formatDateTime } from '../../utils/format'
-import { Search, Wallet, AlertCircle, CheckCircle2, LogOut, X } from 'lucide-react'
+import { Search, Wallet, AlertCircle, CheckCircle2, LogOut, X, ScanLine } from 'lucide-react'
 import DragonLogo from '../common/DragonLogo'
+import QRScanner from '../common/QRScanner'
 
 const CATEGORIES = [
   { key: 'bar', label: 'Bar', emoji: '🍺' },
@@ -22,6 +23,7 @@ export default function StaffCash() {
   const [note, setNote] = useState('')
   const [mode, setMode] = useState('spesa')
   const [feedback, setFeedback] = useState(null)
+  const [showScanner, setShowScanner] = useState(false)
   const searchRef = useRef(null)
 
   useEffect(() => { searchRef.current?.focus() }, [])
@@ -72,6 +74,17 @@ export default function StaffCash() {
     setTimeout(() => searchRef.current?.focus(), 200)
   }
 
+  const handleQRScan = (code) => {
+    setShowScanner(false)
+    const user = users.find(u => u.id.toUpperCase() === code.toUpperCase())
+    if (user) {
+      handleSelect(user)
+    } else {
+      setQuery(code)
+      setTimeout(() => searchRef.current?.focus(), 50)
+    }
+  }
+
   const refreshSelected = useCallback(() => {
     if (selectedUser) {
       const updated = users.find(u => u.id === selectedUser.id)
@@ -102,21 +115,30 @@ export default function StaffCash() {
 
       <div className="p-4 space-y-4 pb-8">
         {/* Search */}
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            ref={searchRef}
-            className="input pl-10 pr-10"
-            placeholder="Cerca per nome o codice..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            autoComplete="off"
-          />
-          {query && (
-            <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
-              <X size={16} />
-            </button>
-          )}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              ref={searchRef}
+              className="input pl-10 pr-10"
+              placeholder="Cerca per nome o codice..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              autoComplete="off"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setShowScanner(true)}
+            className="btn-secondary px-3 flex items-center gap-1 flex-shrink-0"
+            title="Scansiona QR"
+          >
+            <ScanLine size={18} />
+          </button>
         </div>
 
         {/* Risultati ricerca */}
@@ -301,10 +323,14 @@ export default function StaffCash() {
           <div className="text-center py-12">
             <div className="text-5xl mb-3">🔍</div>
             <p className="text-gray-500">Cerca un utente per iniziare</p>
-            <p className="text-gray-400 text-sm mt-1">Almeno 2 caratteri</p>
+            <p className="text-gray-400 text-sm mt-1">Almeno 2 caratteri o scansiona il QR</p>
           </div>
         )}
       </div>
+
+      {showScanner && (
+        <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
+      )}
     </div>
   )
 }

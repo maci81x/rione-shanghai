@@ -1,11 +1,26 @@
 import { useState } from 'react'
 import { useStore } from '../../store/useStore'
 import { formatEur, formatDate, formatDateTime, categoryEmoji, typeColor } from '../../utils/format'
-import { Search, Plus, X, QrCode, Lock, Unlock, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Plus, X, QrCode, Lock, Unlock, Trash2, Edit2, ChevronDown, ChevronUp, ScanLine } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import Modal from '../common/Modal'
+import QRScanner from '../common/QRScanner'
 
 const EMPTY_USER = { id: '', name: '', surname: '', cf: '', email: '', pin: '', notes: '', privacy_base: true, privacy_gdpr: true, privacy_marketing: false, privacy_media: false }
+
+// Trova il primo numero libero nella sequenza SH-NNN (gap-filling)
+function nextCardId(users) {
+  const nums = users
+    .map(u => { const m = u.id.match(/^SH-(\d+)$/i); return m ? parseInt(m[1], 10) : null })
+    .filter(n => n !== null)
+    .sort((a, b) => a - b)
+  let next = 1
+  for (const n of nums) {
+    if (n === next) next++
+    else break
+  }
+  return `SH-${String(next).padStart(3, '0')}`
+}
 
 export default function AdminUsers() {
   const { users, transactions, addUser, updateUser, deleteUser, chargeUser, rechargeUser } = useStore()
@@ -13,12 +28,14 @@ export default function AdminUsers() {
   const [selected, setSelected] = useState(null)
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_USER)
+  const [formError, setFormError] = useState('')
   const [txAmount, setTxAmount] = useState('')
   const [txNote, setTxNote] = useState('')
   const [txCategory, setTxCategory] = useState('vario')
   const [txMode, setTxMode] = useState('spesa')
   const [feedback, setFeedback] = useState(null)
   const [showTxs, setShowTxs] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
 
   const filtered = users
     .filter(u => !query ||
@@ -32,13 +49,28 @@ export default function AdminUsers() {
     ? transactions.filter(t => t.user_id === selected.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     : []
 
-  const openCreate = () => { setForm(EMPTY_USER); setModal('form'); setSelected(null) }
-  const openEdit = (u) => { setForm({ ...u }); setModal('form'); setSelected(u) }
+  const openCreate = () => {
+    setForm({ ...EMPTY_USER, id: nextCardId(users) })
+    setFormError('')
+    setModal('form')
+    setSelected(null)
+  }
+
+  const openEdit = (u) => {
+    setForm({ ...u })
+    setFormError('')
+    setModal('form')
+    setSelected(u)
+  }
 
   const handleSave = () => {
     if (!form.id || !form.name || !form.surname || !form.pin) return
-    if (modal === 'form' && !selected) { addUser(form) } else { updateUser(form.id, form) }
-    setModal(null); setSelected(null)
+    if (!selected && users.some(u => u.id.toUpperCase() === form.id.toUpperCase())) {
+      setFormError(`Il codice ${form.id} è già in uso.`)
+      return
+    }
+    if (!selected) { addUser(form) } else { updateUser(form.id, form) }
+    setModal(null); setSelected(null); setFormError('')
   }
 
   const handleAction = () => {
@@ -58,6 +90,19 @@ export default function AdminUsers() {
     if (confirm(`Eliminare ${u.name} ${u.surname}?`)) { deleteUser(u.id); setSelected(null) }
   }
 
+  const handleQRScan = (code) => {
+    setShowScanner(false)
+    const user = users.find(u => u.id.toUpperCase() === code.toUpperCase())
+    if (user) {
+      setQuery('')
+      setSelected(user)
+      setFeedback(null)
+      setShowTxs(false)
+    } else {
+      setQuery(code)
+    }
+  }
+
   const pillMode = (active) => `flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
     active ? 'bg-black text-[#FFED00]' : 'text-gray-500'
   }`
@@ -67,8 +112,25 @@ export default function AdminUsers() {
       <div className="sticky top-0 bg-[#f5f5f5] z-10 px-4 pt-4 pb-2 flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9 text-sm" placeholder="Cerca utente..." value={query} onChange={e => setQuery(e.target.value)} />
+          <input
+            className="input pl-9 text-sm"
+            placeholder="Cerca utente..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          {query && (
+            <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+              <X size={14} />
+            </button>
+          )}
         </div>
+        <button
+          onClick={() => setShowScanner(true)}
+          className="btn-secondary px-3 flex items-center gap-1 text-sm"
+          title="Scansiona QR"
+        >
+          <ScanLine size={16} />
+        </button>
         <button onClick={openCreate} className="btn-primary px-3 flex items-center gap-1 text-sm">
           <Plus size={16} /> Nuovo
         </button>
@@ -104,7 +166,6 @@ export default function AdminUsers() {
             {/* Pannello espanso */}
             {selected?.id === u.id && (
               <div className="mt-4 space-y-4 border-t border-gray-100 pt-4" onClick={e => e.stopPropagation()}>
-                {/* Azioni rapide */}
                 <div className="flex flex-wrap gap-2">
                   {[
                     { label: 'QR', icon: QrCode, action: () => setModal('qr') },
@@ -128,7 +189,6 @@ export default function AdminUsers() {
 
                 {u.notes && <p className="text-gray-500 text-xs italic">{u.notes}</p>}
 
-                {/* Ricarica/addebita */}
                 <div className="space-y-2">
                   <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg">
                     {[{ k: 'spesa', l: 'Addebita' }, { k: 'ricarica', l: 'Ricarica' }].map(({ k, l }) => (
@@ -167,7 +227,6 @@ export default function AdminUsers() {
                   </button>
                 </div>
 
-                {/* Toggle movimenti */}
                 <button onClick={() => setShowTxs(!showTxs)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700">
                   {showTxs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   {showTxs ? 'Nascondi movimenti' : 'Ultimi movimenti'}
@@ -185,7 +244,7 @@ export default function AdminUsers() {
         ))}
       </div>
 
-      {/* QR Modal */}
+      {/* QR display modal */}
       {modal === 'qr' && selected && (
         <Modal title="QR Utente" onClose={() => setModal(null)} size="sm">
           <div className="text-center">
@@ -200,12 +259,12 @@ export default function AdminUsers() {
         </Modal>
       )}
 
-      {/* Form Modal */}
+      {/* Form modal */}
       {modal === 'form' && (
-        <Modal title={selected ? 'Modifica utente' : 'Nuovo utente'} onClose={() => { setModal(null); setSelected(null) }} size="md">
+        <Modal title={selected ? 'Modifica utente' : 'Nuovo utente'} onClose={() => { setModal(null); setSelected(null); setFormError('') }} size="md">
           <div className="space-y-3">
             {[
-              { key: 'id', label: 'Codice (es. SH-005)', upper: true, disabled: !!selected },
+              { key: 'id', label: 'Codice tessera', upper: true, disabled: !!selected },
               { key: 'name', label: 'Nome' },
               { key: 'surname', label: 'Cognome' },
               { key: 'cf', label: 'Codice Fiscale', upper: true },
@@ -220,16 +279,27 @@ export default function AdminUsers() {
                   type={type || 'text'} disabled={disabled}
                   inputMode={inputMode} maxLength={maxLength}
                   value={form[key] || ''}
-                  onChange={e => setForm(f => ({ ...f, [key]: upper ? e.target.value.toUpperCase() : e.target.value }))}
+                  onChange={e => {
+                    setFormError('')
+                    setForm(f => ({ ...f, [key]: upper ? e.target.value.toUpperCase() : e.target.value }))
+                  }}
                 />
               </div>
             ))}
+            {formError && (
+              <p className="text-red-600 text-xs font-semibold">{formError}</p>
+            )}
             <div className="flex gap-2 pt-2">
-              <button onClick={() => { setModal(null); setSelected(null) }} className="btn-secondary flex-1">Annulla</button>
+              <button onClick={() => { setModal(null); setSelected(null); setFormError('') }} className="btn-secondary flex-1">Annulla</button>
               <button onClick={handleSave} className="btn-primary flex-1">Salva</button>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* QR scanner */}
+      {showScanner && (
+        <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
       )}
     </div>
   )
